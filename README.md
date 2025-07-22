@@ -1,6 +1,6 @@
 # Automated Accessibility Checker
 
-A comprehensive, open-source solution for automated accessibility testing of websites and Flutter mobile applications against WCAG 2.2 criteria.
+A comprehensive, open-source solution for automated accessibility testing of websites and against WCAG 2.2 criteria.
 
 ## Features
 
@@ -9,12 +9,6 @@ A comprehensive, open-source solution for automated accessibility testing of web
 - **Detailed Reports**: HTML reports with specific violation details
 - **Batch Testing**: Test multiple URLs simultaneously
 - **Real-time Results**: Live testing with immediate feedback
-
-### ✅ Flutter App Testing
-- **Widget-level Testing**: Semantic tree validation
-- **Integration Testing**: Full app accessibility audits
-- **Focus Management**: Navigation and focus order validation
-- **Touch Target Validation**: Minimum size requirements
 
 ### ✅ Web Interface
 - **Easy-to-use Dashboard**: Simple URL input and testing
@@ -77,10 +71,6 @@ A comprehensive, open-source solution for automated accessibility testing of web
    - Click "Run Batch Test"
    - Results appear in "Test Results" tab
 
-### Testing Flutter Apps
-
-See [Flutter Testing Guide](flutter-testing-guide.md) for detailed setup and testing procedures.
-
 ## API Endpoints
 
 ### Website Testing
@@ -88,10 +78,6 @@ See [Flutter Testing Guide](flutter-testing-guide.md) for detailed setup and tes
 - `POST /api/batch-test` - Test multiple websites
 - `GET /api/test-results` - Get all test results
 - `GET /api/test-results/:testId` - Get specific test result
-
-### Flutter Testing
-- `POST /api/test-flutter-app` - Test Flutter application
-- See Flutter guide for additional endpoints
 
 ## Architecture
 
@@ -224,23 +210,9 @@ npm start  # React development server
 4. Add tests for new functionality
 5. Submit a pull request
 
-## License
-
-MIT License - see LICENSE file for details
-
 ## Support
 
 - Create an issue for bug reports
 - Check existing issues for known problems
 - See Flutter Testing Guide for mobile app testing
 - Review API documentation for integration needs
-
-## Roadmap
-
-- [ ] PDF report generation
-- [ ] Scheduled testing
-- [ ] Email notifications
-- [ ] Database persistence
-- [ ] Custom rule creation
-- [ ] Multi-language support
-- [ ] CI/CD integration hooks
