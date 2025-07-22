@@ -1,0 +1,27 @@
+{
+  "name": "accessibility-checker-cli",
+  "version": "1.0.0",
+  "description": "CLI tool for automated accessibility testing with axe-core",
+  "main": "accessibility-checker.js",
+  "bin": {
+    "accessibility-checker": "./accessibility-checker.js"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "commander": "^11.1.0",
+    "node-fetch": "^2.7.0"
+  },
+  "keywords": [
+    "accessibility",
+    "wcag",
+    "axe-core",
+    "testing",
+    "cli",
+    "ci-cd"
+  ],
+  "author": "",
+  "license": "MIT",
+  "preferGlobal": true
+}

@@ -1,0 +1,201 @@
+name: Accessibility Testing
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run accessibility tests daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+jobs:
+  accessibility-test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        wcag-level: 
+          - 'wcag2aa'      # Standard compliance
+          - 'wcag22aa'     # Latest standards
+          - 'section508'   # US Federal requirements
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: |
+        cd backend
+        npm ci
+
+    - name: Start accessibility checker server
+      run: |
+        cd backend
+        npm start &
+        
+        # Wait for server to be ready
+        timeout 30 bash -c 'until curl -f http://localhost:3001/api/health; do sleep 1; done'
+      
+    - name: Test production website
+      id: accessibility-test
+      run: |
+        # Test your production website
+        RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" \
+          -X POST http://localhost:3001/api/ci/test-url \
+          -H "Content-Type: application/json" \
+          -d '{
+            "url": "https://your-website.com",
+            "wcagLevel": ["${{ matrix.wcag-level }}"],
+            "failOnViolations": true,
+            "maxViolations": 0,
+            "format": "json"
+          }')
+        
+        HTTP_CODE=$(echo $RESPONSE | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
+        BODY=$(echo $RESPONSE | sed -e 's/HTTPSTATUS\:.*//g')
+        
+        echo "HTTP Status: $HTTP_CODE"
+        echo "Response: $BODY"
+        echo "response=$BODY" >> $GITHUB_OUTPUT
+        
+        # Save results for artifact
+        echo "$BODY" | jq '.' > accessibility-results-${{ matrix.wcag-level }}.json
+        
+        if [ "$HTTP_CODE" -ne 200 ] && [ "$HTTP_CODE" -ne 422 ]; then
+          echo "Server error occurred"
+          exit 1
+        fi
+        
+        # Check if tests passed
+        SUCCESS=$(echo "$BODY" | jq -r '.success')
+        if [ "$SUCCESS" != "true" ]; then
+          echo "Accessibility tests failed"
+          exit 1
+        fi
+
+    - name: Test multiple URLs (batch)
+      if: always()  # Run even if single URL test failed
+      run: |
+        # Test multiple pages of your website
+        curl -s -X POST http://localhost:3001/api/ci/test-urls \
+          -H "Content-Type: application/json" \
+          -d '{
+            "urls": [
+              "https://your-website.com",
+              "https://your-website.com/about",
+              "https://your-website.com/contact",
+              "https://your-website.com/products"
+            ],
+            "wcagLevel": ["${{ matrix.wcag-level }}"],
+            "failOnViolations": false,
+            "continueOnFailure": true
+          }' | jq '.' > accessibility-batch-results-${{ matrix.wcag-level }}.json
+
+    - name: Generate JUnit report
+      if: always()
+      run: |
+        curl -s -X POST http://localhost:3001/api/ci/test-url \
+          -H "Content-Type: application/json" \
+          -d '{
+            "url": "https://your-website.com",
+            "wcagLevel": ["${{ matrix.wcag-level }}"],
+            "format": "junit"
+          }' > accessibility-junit-${{ matrix.wcag-level }}.xml
+
+    - name: Generate SARIF report for GitHub Security
+      if: always()
+      run: |
+        curl -s -X POST http://localhost:3001/api/ci/test-url \
+          -H "Content-Type: application/json" \
+          -d '{
+            "url": "https://your-website.com",
+            "wcagLevel": ["${{ matrix.wcag-level }}"],
+            "format": "sarif"
+          }' > accessibility-sarif-${{ matrix.wcag-level }}.sarif
+
+    - name: Upload SARIF file to GitHub Security
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: accessibility-sarif-${{ matrix.wcag-level }}.sarif
+        category: accessibility-${{ matrix.wcag-level }}
+
+    - name: Publish Test Results
+      uses: dorny/test-reporter@v1
+      if: always()
+      with:
+        name: Accessibility Tests (${{ matrix.wcag-level }})
+        path: accessibility-junit-${{ matrix.wcag-level }}.xml
+        reporter: java-junit
+        fail-on-error: true
+
+    - name: Upload accessibility reports
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: accessibility-reports-${{ matrix.wcag-level }}
+        path: |
+          accessibility-*.json
+          accessibility-*.xml
+          accessibility-*.sarif
+
+    - name: Comment on PR with results
+      if: github.event_name == 'pull_request' && always()
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const path = './accessibility-results-${{ matrix.wcag-level }}.json';
+          
+          if (fs.existsSync(path)) {
+            const results = JSON.parse(fs.readFileSync(path, 'utf8'));
+            const violations = results.summary.violations;
+            const passes = results.summary.passes;
+            
+            const status = results.success ? '✅ PASSED' : '❌ FAILED';
+            const wcagLevel = '${{ matrix.wcag-level }}';
+            
+            const comment = `
+          ## Accessibility Test Results (${wcagLevel.toUpperCase()}) ${status}
+          
+          **Summary:**
+          - 🔴 Violations: ${violations}
+          - ✅ Passes: ${passes}
+          - ⚠️ Incomplete: ${results.summary.incomplete}
+          
+          ${violations > 0 ? `
+          **Top Violations:**
+          ${results.violations.slice(0, 5).map(v => 
+            \`- **\${v.impact.toUpperCase()}**: \${v.description} (\${v.nodes} element\${v.nodes !== 1 ? 's' : ''})\`
+          ).join('\\n')}
+          
+          [View full report](\${results.violations[0]?.helpUrl || 'https://www.deque.com/axe/'})
+          ` : '🎉 No accessibility violations found!'}
+          `;
+          
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+          }
+
+  notify-teams:
+    needs: accessibility-test
+    runs-on: ubuntu-latest
+    if: failure() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    
+    steps:
+    - name: Notify Teams on failure
+      run: |
+        # Add your notification logic here (Slack, Teams, email, etc.)
+        echo "Accessibility tests failed on ${{ github.ref }}"
+        # Example: curl webhook to notify team
