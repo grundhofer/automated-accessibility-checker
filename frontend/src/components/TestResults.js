@@ -73,7 +73,6 @@ function TestResults({ results, onRefresh }) {
         throw new Error('Failed to generate PDF');
       }
 
-      // Create download link
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -202,7 +201,6 @@ function TestResults({ results, onRefresh }) {
         </TableContainer>
       )}
 
-      {/* PDF Download Menu */}
       <Menu
         anchorEl={menuAnchor}
         open={Boolean(menuAnchor)}
